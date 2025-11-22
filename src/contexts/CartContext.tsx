@@ -21,6 +21,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   const addToCart = (product: Product, quantityToAdd: number = 1) => {
+    if (!product || !product.id) {
+        toast.error("Cannot add an invalid product to cart.");
+        return;
+    }
+    if (typeof quantityToAdd !== 'number' || quantityToAdd <= 0) {
+        quantityToAdd = 1; // Default to 1 if quantity is invalid
+    }
+
     setCartItems(prevItems => {
       const existingItem = prevItems.find(item => item.id === product.id);
       if (existingItem) {
@@ -45,6 +53,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateQuantity = (productId: number, quantity: number) => {
+    if (typeof quantity !== 'number') return; // Prevent unexpected behavior
+    
     if (quantity <= 0) {
         removeFromCart(productId);
     } else {
@@ -61,7 +71,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const cartCount = cartItems.reduce((count, item) => count + item.quantity, 0);
-  const totalPrice = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  
+  // Use a try-catch for total price calculation to handle potential float issues safely, though simple reduce is usually fine.
+  const totalPrice = cartItems.reduce((total, item) => {
+      // Basic check for valid price/quantity
+      const price = typeof item.price === 'number' && item.price > 0 ? item.price : 0;
+      const quantity = typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 0;
+      return total + price * quantity;
+  }, 0);
+
 
   return (
     <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, updateQuantity, clearCart, cartCount, totalPrice, isCartOpen, setIsCartOpen }}>
@@ -73,6 +91,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 export const useCart = () => {
   const context = useContext(CartContext);
   if (context === undefined) {
+    // This is the essential error handling for Context Hook usage
     throw new Error('useCart must be used within a CartProvider');
   }
   return context;

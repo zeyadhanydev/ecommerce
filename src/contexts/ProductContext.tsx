@@ -25,17 +25,29 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
 
         console.log('🔄 Fetching data from Fake Store API...');
 
-        const { products, categories } = await fetchAllData();
+        // استخدم try-catch هنا لضمان معالجة أي خطأ في fetchAllData
+        const result = await fetchAllData();
+        const fetchedProducts = result.products;
+        const fetchedCategories = result.categories;
+        
+        // التحقق من نوعية البيانات المسترجعة
+        if (!Array.isArray(fetchedProducts) || !Array.isArray(fetchedCategories)) {
+            throw new Error('API returned malformed data (not arrays).');
+        }
 
-        setProducts(products);
-        setCategories(categories);
+        setProducts(fetchedProducts);
+        setCategories(fetchedCategories);
 
         console.log('✅ Data loaded successfully from Fake Store API');
-        console.log(`📦 Products: ${products.length}, 📂 Categories: ${categories.length}`);
+        console.log(`📦 Products: ${fetchedProducts.length}, 📂 Categories: ${fetchedCategories.length}`);
 
       } catch (err: any) {
+        // معالجة الخطأ
+        const errorMessage = err.message || 'Failed to fetch products or categories from Fake Store API. Check network and API status.';
         console.error("❌ Error fetching data from Fake Store API:", err);
-        setError(err.message || 'Failed to fetch products or categories from Fake Store API.');
+        setError(errorMessage);
+        setProducts([]); // تأكد من تفريغ المنتجات في حالة الخطأ
+        setCategories([]);
       } finally {
         setLoading(false);
       }

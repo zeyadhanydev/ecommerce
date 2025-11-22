@@ -1,105 +1,220 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { AuthError, Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { Profile } from '../types';
-import toast from 'react-hot-toast';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
+import toast from "react-hot-toast";
+
+interface User {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+}
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: SupabaseUser | null;
-  profile: Profile | null;
-  login: (credentials: { email: string, password: string }) => Promise<{ error: AuthError | null }>;
-  signUp: (credentials: { email: string, password: string, firstName: string, lastName: string }) => Promise<{ error: AuthError | null }>;
-  logout: () => Promise<void>;
+  user: User | null;
+  profile: User | null;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  signUp: (credentials: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+  }) => Promise<boolean>; // تم تغيير العودة لتكون boolean
+  logout: () => void;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ---------------------------------------------
+// HELPER: Safely get from localStorage
+// ---------------------------------------------
+const safeLocalStorageGet = (key: string) => {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error("Error accessing localStorage:", error);
+    return null;
+  }
+};
+
+// ---------------------------------------------
+// HELPER: Safely set to localStorage
+// ---------------------------------------------
+const safeLocalStorageSet = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error("Error setting localStorage:", error);
+    return false;
+  }
+};
+
+// ---------------------------------------------
+// HELPER: Safely remove from localStorage
+// ---------------------------------------------
+const safeLocalStorageRemove = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    console.error("Error removing from localStorage:", error);
+    return false;
+  }
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Load session from localStorage
   useEffect(() => {
-    const getInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-            setProfile(profileData);
-        }
-        setLoading(false);
-    };
-
-    getInitialSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-            if (_event === 'SIGNED_IN') {
-                toast.success('Logged in successfully!');
-            }
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-            setProfile(profileData);
-        } else {
-            setProfile(null);
-        }
-        setLoading(false);
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
+    try {
+      const savedUser = safeLocalStorageGet("auth_user");
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setProfile(parsedUser);
+      }
+    } catch (error) {
+      console.error("Failed to parse user data from localStorage", error);
+      safeLocalStorageRemove("auth_user"); // Remove corrupted data
+      setUser(null);
+      setProfile(null);
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (credentials: { email: string, password: string }) => {
+  // ---------------------------------------------
+  // LOGIN
+  // ---------------------------------------------
+  const login = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword(credentials);
-    if (error) {
-        toast.error(error.message);
-    }
-    setLoading(false);
-    return { error };
-  };
 
-  const signUp = async (credentials: { email: string, password: string, firstName: string, lastName: string }) => {
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email: credentials.email,
-      password: credentials.password,
-      options: {
-        data: {
-          first_name: credentials.firstName,
-          last_name: credentials.lastName,
-        }
+    try {
+      const savedUsersStr = safeLocalStorageGet("all_users");
+      const savedUsers = savedUsersStr ? JSON.parse(savedUsersStr) : [];
+
+      if (!Array.isArray(savedUsers)) {
+        console.error("Corrupted 'all_users' data in localStorage");
+        toast.error("An internal error occurred. Please try again.");
+        setLoading(false);
+        return;
       }
-    });
-     if (error) {
-        toast.error(error.message);
-    } else {
-        toast.success('Success! Please check your email to confirm your account.');
+
+      const found = savedUsers.find(
+        (u: any) => u.email === email && u.password === password
+      );
+
+      if (!found) {
+        toast.error("Invalid email or password");
+        setLoading(false);
+        return;
+      }
+
+      if (safeLocalStorageSet("auth_user", JSON.stringify(found))) {
+        setUser(found);
+        setProfile(found);
+        toast.success("Logged in successfully!");
+      } else {
+        toast.error("Login successful, but failed to save session.");
+      }
+    } catch (error) {
+      console.error("Login process error:", error);
+      toast.error("An unexpected error occurred during login.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    return { error };
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    toast.success('Logged out successfully.');
+  // ---------------------------------------------
+  // SIGN UP
+  // ---------------------------------------------
+  const signUp = async ({ email, password, firstName, lastName }: any) => {
+    setLoading(true);
+
+    try {
+      const usersStr = safeLocalStorageGet("all_users");
+      const users = usersStr ? JSON.parse(usersStr) : [];
+
+      if (!Array.isArray(users)) {
+        console.error("Corrupted 'all_users' data in localStorage");
+        toast.error("An internal error occurred. Please try again.");
+        setLoading(false);
+        return false;
+      }
+
+      // prevent duplicate accounts
+      if (users.find((u: any) => u.email === email)) {
+        toast.error("Email already exists");
+        setLoading(false);
+        return false;
+      }
+
+      const newUser = { email, password, firstName, lastName };
+      users.push(newUser);
+
+      if (!safeLocalStorageSet("all_users", JSON.stringify(users))) {
+        toast.error("Failed to save user data.");
+        setLoading(false);
+        return false;
+      }
+
+      // auto-login after signup
+      if (safeLocalStorageSet("auth_user", JSON.stringify(newUser))) {
+        setUser(newUser);
+        setProfile(newUser);
+        toast.success("Account created successfully!");
+        setLoading(false);
+        return true;
+      } else {
+        toast.error("Account created, but failed to log in automatically.");
+        setLoading(false);
+        return true; // Account created successfully
+      }
+    } catch (error) {
+      console.error("Sign Up process error:", error);
+      toast.error("An unexpected error occurred during sign up.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---------------------------------------------
+  // LOGOUT
+  // ---------------------------------------------
+  const logout = () => {
+    safeLocalStorageRemove("auth_user");
+    setUser(null);
+    setProfile(null);
+    toast.success("Logged out successfully.");
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, profile, login, signUp, logout, loading }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated: !!user,
+        user,
+        profile,
+        login,
+        signUp,
+        logout,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -107,8 +222,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
