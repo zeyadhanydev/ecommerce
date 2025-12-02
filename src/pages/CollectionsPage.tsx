@@ -30,8 +30,7 @@ const FilterSection = ({
  defaultOpen?: boolean;
 }) => {
  const [isOpen, setIsOpen] = useState(defaultOpen);
- return 
-  <div className="border-b border-brand-gray-dark/50 py-4">
+ return <div className="border-b border-brand-gray-dark/50 py-4 ">
    <button
     onClick={() => setIsOpen(!isOpen)}
     className="w-full flex justify-between items-center"
@@ -74,7 +73,7 @@ const location = useLocation();
  const getInitialCategory = () => {
   const params = new URLSearchParams(location.search);
   const category = params.get("category");
-  // 💡 التعديل هنا: فك تشفير مُعامِل الاستعلام لتطابق الأسماء
+  
   return category ? [decodeURIComponent(category)] : [];
  };
 
