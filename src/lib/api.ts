@@ -1,8 +1,8 @@
-import axios from 'axios';
-import { FakeStoreProduct, Product, Category } from '../types';
+import axios from "axios";
+import { FakeStoreProduct, Product, Category } from "../types";
 
 // Base URL for Fake Store API
-const FAKE_STORE_API_BASE = 'https://fakestoreapi.com';
+const FAKE_STORE_API_BASE = "https://fakestoreapi.com";
 
 // Create axios instance with default config
 const api = axios.create({
@@ -14,20 +14,20 @@ const api = axios.create({
 // HELPER: Error Handler for Axios
 // ---------------------------------------------
 const handleApiError = (error: unknown, resourceName: string) => {
-    let errorMessage = `Failed to fetch ${resourceName}.`;
-    if (axios.isAxiosError(error)) {
-        if (error.response) {
-            errorMessage += ` Status: ${error.response.status}.`;
-        } else if (error.request) {
-            errorMessage += ` No response received.`;
-        } else {
-            errorMessage += ` Request setup error.`;
-        }
-    } else if (error instanceof Error) {
-        errorMessage = error.message;
+  let errorMessage = `Failed to fetch ${resourceName}.`;
+  if (axios.isAxiosError(error)) {
+    if (error.response) {
+      errorMessage += ` Status: ${error.response.status}.`;
+    } else if (error.request) {
+      errorMessage += ` No response received.`;
+    } else {
+      errorMessage += ` Request setup error.`;
     }
-    console.error(`Error fetching ${resourceName}:`, error);
-    throw new Error(errorMessage);
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+  console.error(`Error fetching ${resourceName}:`, error);
+  throw new Error(errorMessage);
 };
 
 
@@ -36,14 +36,11 @@ const handleApiError = (error: unknown, resourceName: string) => {
  */
 export const fetchProducts = async (): Promise<FakeStoreProduct[]> => {
   try {
-    const response = await api.get('/products');
-    if (!Array.isArray(response.data)) {
-        throw new Error('Products API returned invalid data format.');
-    }
+    const response = await api.get("/products");
     return response.data;
   } catch (error) {
-    handleApiError(error, 'products');
-    throw new Error('Failed to fetch products'); // Redundant but good for typing
+    console.error("Error fetching products:", error);
+    throw new Error("Failed to fetch products");
   }
 };
 
@@ -54,7 +51,7 @@ export const fetchProduct = async (id: number): Promise<FakeStoreProduct> => {
   try {
     const response = await api.get(`/products/${id}`);
     if (!response.data || typeof response.data.id !== 'number') {
-        throw new Error(`Product ${id} not found or invalid format.`);
+      throw new Error(`Product ${id} not found or invalid format.`);
     }
     return response.data;
   } catch (error) {
@@ -68,25 +65,24 @@ export const fetchProduct = async (id: number): Promise<FakeStoreProduct> => {
  */
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const response = await api.get('/products/categories');
-    if (!Array.isArray(response.data)) {
-        throw new Error('Categories API returned invalid data format.');
-    }
+    const response = await api.get("/products/categories");
     return response.data;
   } catch (error) {
-    handleApiError(error, 'categories');
-    throw new Error('Failed to fetch categories');
+    console.error("Error fetching categories:", error);
+    throw new Error("Failed to fetch categories");
   }
 };
 
 /**
  * Fetch products by category
  */
-export const fetchProductsByCategory = async (category: string): Promise<FakeStoreProduct[]> => {
+export const fetchProductsByCategory = async (
+  category: string
+): Promise<FakeStoreProduct[]> => {
   try {
     const response = await api.get(`/products/category/${category}`);
     if (!Array.isArray(response.data)) {
-        throw new Error(`Products for category ${category} returned invalid data format.`);
+      throw new Error(`Products for category ${category} returned invalid data format.`);
     }
     return response.data;
   } catch (error) {
@@ -99,30 +95,26 @@ export const fetchProductsByCategory = async (category: string): Promise<FakeSto
  * Transform Fake Store API product to our internal Product type
  */
 export const transformFakeStoreProduct = (
-  fakeProduct: FakeStoreProduct, 
+  fakeProduct: FakeStoreProduct,
   categories: Category[]
 ): Product => {
-  // التحقق من صحة المنتج قبل التحويل
-  if (!fakeProduct || typeof fakeProduct.id !== 'number' || typeof fakeProduct.price !== 'number' || typeof fakeProduct.title !== 'string') {
-      console.error("Invalid product data received for transformation:", fakeProduct);
-      throw new Error("Invalid product data received from API.");
-  }
-    
-  const categoryObj = categories.find(cat => cat.name === fakeProduct.category);
-  
+  const categoryObj = categories.find(
+    (cat) => cat.name === fakeProduct.category
+  );
+
   return {
     id: fakeProduct.id,
     title: fakeProduct.title,
     price: fakeProduct.price,
-    description: fakeProduct.description || null,
-    image: fakeProduct.image || null,
-    rating: fakeProduct.rating || { rate: 0, count: 0 }, // التعامل مع تقييم مفقود
-    category: categoryObj || { 
-      id: 0, 
-      name: fakeProduct.category, 
-      created_at: new Date().toISOString() 
+    description: fakeProduct.description,
+    image: fakeProduct.image,
+    rating: fakeProduct.rating,
+    category: categoryObj || {
+      id: 0,
+      name: fakeProduct.category,
+      created_at: new Date().toISOString(),
     },
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
 };
 
@@ -134,36 +126,31 @@ export const transformCategories = (categoryNames: string[]): Category[] => {
   return categoryNames.map((name, index) => ({
     id: index + 1,
     name,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   }));
 };
 
 /**
  * Fetch and transform all data for the application
  */
-export const fetchAllData = async (): Promise<{ products: Product[], categories: Category[] }> => {
+export const fetchAllData = async (): Promise<{
+  products: Product[];
+  categories: Category[];
+}> => {
   try {
     // Fetch categories first
     const categoryNames = await fetchCategories();
     const categories = transformCategories(categoryNames);
-    
+
     // Fetch products
     const fakeProducts = await fetchProducts();
-    
-    // تحويل المنتجات
-    const products = fakeProducts.map(product => {
-      try {
-        return transformFakeStoreProduct(product, categories);
-      } catch (e) {
-        console.warn(`Skipping malformed product with ID: ${product?.id || 'unknown'}`, e);
-        return null; // تجاهل المنتجات التالفة
-      }
-    }).filter((p): p is Product => p !== null); // إزالة المنتجات التي تم تخطيها
-    
+    const products = fakeProducts.map((product) =>
+      transformFakeStoreProduct(product, categories)
+    );
+
     return { products, categories };
   } catch (error) {
-    console.error('Error in fetchAllData pipeline:', error);
-    // إعادة رمي الخطأ الذي تم معالجته في الدوال الفرعية
+    console.error("Error fetching all data:", error);
     throw error;
   }
 };

@@ -1,6 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Product, Category } from '../types';
-import { fetchAllData } from '../lib/api';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { Product, Category } from "../types";
+import { fetchAllData } from "../lib/api";
 
 interface ProductContextType {
   products: Product[];
@@ -23,31 +29,33 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         setLoading(true);
         setError(null);
 
-        console.log('🔄 Fetching data from Fake Store API...');
+        console.log("🔄 Fetching data from Fake Store API...");
 
         // استخدم try-catch هنا لضمان معالجة أي خطأ في fetchAllData
         const result = await fetchAllData();
         const fetchedProducts = result.products;
         const fetchedCategories = result.categories;
-        
+
         // التحقق من نوعية البيانات المسترجعة
         if (!Array.isArray(fetchedProducts) || !Array.isArray(fetchedCategories)) {
-            throw new Error('API returned malformed data (not arrays).');
+          throw new Error('API returned malformed data (not arrays).');
         }
 
         setProducts(fetchedProducts);
         setCategories(fetchedCategories);
 
-        console.log('✅ Data loaded successfully from Fake Store API');
-        console.log(`📦 Products: ${fetchedProducts.length}, 📂 Categories: ${fetchedCategories.length}`);
-
+        console.log("✅ Data loaded successfully from Fake Store API");
+        console.log(
+          `📦 Products: ${products.length}, 📂 Categories: ${categories.length}`
+        );
       } catch (err: any) {
         // معالجة الخطأ
         const errorMessage = err.message || 'Failed to fetch products or categories from Fake Store API. Check network and API status.';
         console.error("❌ Error fetching data from Fake Store API:", err);
-        setError(errorMessage);
-        setProducts([]); // تأكد من تفريغ المنتجات في حالة الخطأ
-        setCategories([]);
+        setError(
+          err.message ||
+          "Failed to fetch products or categories from Fake Store API."
+        );
       } finally {
         setLoading(false);
       }
@@ -66,7 +74,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
 export const useProductsContext = () => {
   const context = useContext(ProductContext);
   if (context === undefined) {
-    throw new Error('useProductsContext must be used within a ProductProvider');
+    throw new Error("useProductsContext must be used within a ProductProvider");
   }
   return context;
 };

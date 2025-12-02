@@ -23,7 +23,7 @@ interface AuthContextType {
     password: string;
     firstName: string;
     lastName: string;
-  }) => Promise<boolean>; // تم تغيير العودة لتكون boolean
+  }) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -75,18 +75,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Load session from localStorage
   useEffect(() => {
-    try {
-      const savedUser = safeLocalStorageGet("auth_user");
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setProfile(parsedUser);
-      }
-    } catch (error) {
-      console.error("Failed to parse user data from localStorage", error);
-      safeLocalStorageRemove("auth_user"); // Remove corrupted data
-      setUser(null);
-      setProfile(null);
+    const savedUser = localStorage.getItem("auth_user");
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      setProfile(parsedUser);
     }
     setLoading(false);
   }, []);
@@ -103,40 +96,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }) => {
     setLoading(true);
 
-    try {
-      const savedUsersStr = safeLocalStorageGet("all_users");
-      const savedUsers = savedUsersStr ? JSON.parse(savedUsersStr) : [];
+    const savedUsers = JSON.parse(localStorage.getItem("all_users") || "[]");
 
-      if (!Array.isArray(savedUsers)) {
-        console.error("Corrupted 'all_users' data in localStorage");
-        toast.error("An internal error occurred. Please try again.");
-        setLoading(false);
-        return;
-      }
+    const found = savedUsers.find(
+      (u: any) => u.email === email && u.password === password
+    );
 
-      const found = savedUsers.find(
-        (u: any) => u.email === email && u.password === password
-      );
-
-      if (!found) {
-        toast.error("Invalid email or password");
-        setLoading(false);
-        return;
-      }
-
-      if (safeLocalStorageSet("auth_user", JSON.stringify(found))) {
-        setUser(found);
-        setProfile(found);
-        toast.success("Logged in successfully!");
-      } else {
-        toast.error("Login successful, but failed to save session.");
-      }
-    } catch (error) {
-      console.error("Login process error:", error);
-      toast.error("An unexpected error occurred during login.");
-    } finally {
+    if (!found) {
+      toast.error("Invalid email or password");
       setLoading(false);
+      return;
     }
+
+    localStorage.setItem("auth_user", JSON.stringify(found));
+    setUser(found);
+    setProfile(found);
+
+    toast.success("Logged in successfully!");
+    setLoading(false);
   };
 
   // ---------------------------------------------
@@ -145,59 +122,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async ({ email, password, firstName, lastName }: any) => {
     setLoading(true);
 
-    try {
-      const usersStr = safeLocalStorageGet("all_users");
-      const users = usersStr ? JSON.parse(usersStr) : [];
+    const users = JSON.parse(localStorage.getItem("all_users") || "[]");
 
-      if (!Array.isArray(users)) {
-        console.error("Corrupted 'all_users' data in localStorage");
-        toast.error("An internal error occurred. Please try again.");
-        setLoading(false);
-        return false;
-      }
-
-      // prevent duplicate accounts
-      if (users.find((u: any) => u.email === email)) {
-        toast.error("Email already exists");
-        setLoading(false);
-        return false;
-      }
-
-      const newUser = { email, password, firstName, lastName };
-      users.push(newUser);
-
-      if (!safeLocalStorageSet("all_users", JSON.stringify(users))) {
-        toast.error("Failed to save user data.");
-        setLoading(false);
-        return false;
-      }
-
-      // auto-login after signup
-      if (safeLocalStorageSet("auth_user", JSON.stringify(newUser))) {
-        setUser(newUser);
-        setProfile(newUser);
-        toast.success("Account created successfully!");
-        setLoading(false);
-        return true;
-      } else {
-        toast.error("Account created, but failed to log in automatically.");
-        setLoading(false);
-        return true; // Account created successfully
-      }
-    } catch (error) {
-      console.error("Sign Up process error:", error);
-      toast.error("An unexpected error occurred during sign up.");
-      return false;
-    } finally {
+    // prevent duplicate accounts
+    if (users.find((u: any) => u.email === email)) {
+      toast.error("Email already exists");
       setLoading(false);
+      return false;
     }
+
+    const newUser = { email, password, firstName, lastName };
+
+    users.push(newUser);
+    localStorage.setItem("all_users", JSON.stringify(users));
+
+    // auto-login after signup
+    localStorage.setItem("auth_user", JSON.stringify(newUser));
+    setUser(newUser);
+    setProfile(newUser);
+
+    toast.success("Account created successfully!");
+    setLoading(false);
+    return true;
   };
 
   // ---------------------------------------------
   // LOGOUT
   // ---------------------------------------------
   const logout = () => {
-    safeLocalStorageRemove("auth_user");
+    localStorage.removeItem("auth_user");
     setUser(null);
     setProfile(null);
     toast.success("Logged out successfully.");
