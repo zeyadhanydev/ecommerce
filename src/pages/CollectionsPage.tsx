@@ -93,7 +93,6 @@ const CollectionsPage = () => {
     );
   };
 
-  // استخراج كل الكاتيجوريز من المشروبات
   const categories = Array.from(new Set(drinks.map((d) => d.category)));
 
   const displayedProducts = useMemo(() => {
